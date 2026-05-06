@@ -15,3 +15,11 @@ node_modules
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337
+
+# Besu node runtime data
+QBFT-Network/Node-*/data/database/
+QBFT-Network/Node-*/data/caches/
+QBFT-Network/Node-*/data/DATABASE_METADATA.json
+QBFT-Network/Node-*/data/VERSION_METADATA.json
+QBFT-Network/Node-*/data/besu.networks
+QBFT-Network/Node-*/data/besu.ports
