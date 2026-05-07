@@ -23,3 +23,6 @@ QBFT-Network/Node-*/data/DATABASE_METADATA.json
 QBFT-Network/Node-*/data/VERSION_METADATA.json
 QBFT-Network/Node-*/data/besu.networks
 QBFT-Network/Node-*/data/besu.ports
+
+.claude/
+.vscode/
