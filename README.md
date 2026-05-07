@@ -11,7 +11,16 @@ Hyperledger Besu QBFT 로컬 네트워크에 ERC-20 토큰을 배포하고, Spri
 
 ## 실행하기
 
+#### Prerequisites
+Node v22, java 21
+
+
 ```bash
+# Hardhat install
+node -v
+java --version
+npm i
+
 # Besu 네트워크 띄우기
 cd QBFT-Network
 docker compose up -d
