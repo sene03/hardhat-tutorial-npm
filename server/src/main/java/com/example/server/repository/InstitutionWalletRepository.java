@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface InstitutionWalletRepository extends JpaRepository<InstitutionWallet, Long> {
 
 	Optional<InstitutionWallet> findByInstitutionId(Long institutionId);
+
+	Optional<InstitutionWallet> findByAddressIgnoreCase(String address);
 }
