@@ -82,8 +82,7 @@ public class TokenService {
 	public WalletResponse createWallet() {
 		try {
 			return walletRegistry.createWallet();
-		}
-		catch (Exception e) {
+		} catch (Exception e) {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create wallet: " + e.getMessage());
 		}
 	}
@@ -120,10 +119,10 @@ public class TokenService {
 		requireContractAddress();
 		try {
 			String data = FunctionEncoder.encode(function);
-			Transaction transaction = Transaction.createEthCallTransaction(null, tokenProperties.contractAddress(), data);
+			Transaction transaction = Transaction.createEthCallTransaction(null, tokenProperties.contractAddress(),
+					data);
 			return web3j.ethCall(transaction, DefaultBlockParameterName.LATEST).send();
-		}
-		catch (IOException e) {
+		} catch (IOException e) {
 			throw new ApiException(HttpStatus.BAD_GATEWAY, "Besu RPC call failed: " + e.getMessage());
 		}
 	}
@@ -151,8 +150,7 @@ public class TokenService {
 				throw new ApiException(HttpStatus.BAD_GATEWAY, response.getError().getMessage());
 			}
 			return response.getTransactionHash();
-		}
-		catch (IOException e) {
+		} catch (IOException e) {
 			throw new ApiException(HttpStatus.BAD_GATEWAY, "Besu RPC transaction failed: " + e.getMessage());
 		}
 	}
@@ -164,9 +162,9 @@ public class TokenService {
 					RECEIPT_POLLING_INTERVAL_MS,
 					RECEIPT_POLLING_ATTEMPTS);
 			return processor.waitForTransactionReceipt(transactionHash);
-		}
-		catch (Exception e) {
-			throw new ApiException(HttpStatus.GATEWAY_TIMEOUT, "Timed out waiting for transaction receipt: " + e.getMessage());
+		} catch (Exception e) {
+			throw new ApiException(HttpStatus.GATEWAY_TIMEOUT,
+					"Timed out waiting for transaction receipt: " + e.getMessage());
 		}
 	}
 
@@ -190,7 +188,8 @@ public class TokenService {
 	private void requireContractAddress() {
 		if (!StringUtils.hasText(tokenProperties.contractAddress())
 				|| !WalletUtils.isValidAddress(tokenProperties.contractAddress())) {
-			throw new ApiException(HttpStatus.BAD_REQUEST, "TOKEN_CONTRACT_ADDRESS must be configured with a valid address");
+			throw new ApiException(HttpStatus.BAD_REQUEST,
+					"TOKEN_CONTRACT_ADDRESS must be configured with a valid address");
 		}
 	}
 }

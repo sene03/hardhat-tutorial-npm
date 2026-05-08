@@ -7,7 +7,7 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
 
 @Configuration
-@EnableConfigurationProperties({BesuProperties.class, TokenProperties.class})
+@EnableConfigurationProperties({BesuProperties.class, TokenProperties.class, WalletEncryptionProperties.class})
 public class Web3jConfig {
 
 	@Bean
