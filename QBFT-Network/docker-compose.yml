@@ -23,6 +23,7 @@ services:
       - --p2p-port=30303
       - --p2p-host=0.0.0.0
       - --host-allowlist=*
+      - --min-gas-price=0
       - --logging=INFO
     networks:
       besu-network:
@@ -52,6 +53,7 @@ services:
       - --p2p-port=30303
       - --p2p-host=0.0.0.0
       - --host-allowlist=*
+      - --min-gas-price=0
       - --bootnodes=enode://7fa5133d55c65f610f8a75a69a6dcd35e5a3bf26b23c070e4ce43e578daea0e2689b1b1938a44c32bd1cd71b143b420a007052ddb5048428ddaf99a21e75632f@172.16.239.11:30303
       - --logging=INFO
     depends_on:
@@ -84,6 +86,7 @@ services:
       - --p2p-port=30303
       - --p2p-host=0.0.0.0
       - --host-allowlist=*
+      - --min-gas-price=0
       - --bootnodes=enode://7fa5133d55c65f610f8a75a69a6dcd35e5a3bf26b23c070e4ce43e578daea0e2689b1b1938a44c32bd1cd71b143b420a007052ddb5048428ddaf99a21e75632f@172.16.239.11:30303
       - --logging=INFO
     depends_on:
@@ -116,6 +119,7 @@ services:
       - --p2p-port=30303
       - --p2p-host=0.0.0.0
       - --host-allowlist=*
+      - --min-gas-price=0
       - --bootnodes=enode://7fa5133d55c65f610f8a75a69a6dcd35e5a3bf26b23c070e4ce43e578daea0e2689b1b1938a44c32bd1cd71b143b420a007052ddb5048428ddaf99a21e75632f@172.16.239.11:30303
       - --logging=INFO
     depends_on:
