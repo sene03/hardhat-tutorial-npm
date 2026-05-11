@@ -33,7 +33,6 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthCall;
-import org.web3j.protocol.core.methods.response.EthGasPrice;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
@@ -45,6 +44,7 @@ import org.web3j.utils.Numeric;
 public class TokenService {
 
 	private static final BigInteger TRANSFER_GAS_LIMIT = BigInteger.valueOf(100_000);
+	private static final BigInteger PRIVATE_NETWORK_GAS_PRICE = BigInteger.ZERO;
 	private static final int RECEIPT_POLLING_ATTEMPTS = 60;
 	private static final long RECEIPT_POLLING_INTERVAL_MS = 1_000L;
 	private static final Long CBDC_INSTITUTION_ID = 1L;
@@ -134,11 +134,6 @@ public class TokenService {
 
 		Web3j web3j = Web3j.build(new HttpService(besuNode.getRpcEndpoint()));
 		try {
-			EthGasPrice gasPriceResponse = web3j.ethGasPrice().send();
-			if (gasPriceResponse.hasError()) {
-				throw new ApiException(HttpStatus.BAD_GATEWAY, gasPriceResponse.getError().getMessage());
-			}
-
 			Function function = new Function(
 					"transfer",
 					List.of(new Address(request.to()), new Uint256(request.amount())),
@@ -147,7 +142,7 @@ public class TokenService {
 			RawTransactionManager transactionManager = new RawTransactionManager(
 					web3j, credentials, besuProperties.chainId());
 			EthSendTransaction sendResponse = transactionManager.sendTransaction(
-					gasPriceResponse.getGasPrice(),
+					PRIVATE_NETWORK_GAS_PRICE,
 					TRANSFER_GAS_LIMIT,
 					contractAddress,
 					FunctionEncoder.encode(function),

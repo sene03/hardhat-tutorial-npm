@@ -1,5 +1,9 @@
 # Hardhat & Besu QBFT tutorial
 
+## Blockscout로 Besu 트랜잭션 GUI 확인하기
+
+- [blockscout-guide](./docs/blockscout-guide.md)
+
 Hyperledger Besu QBFT 로컬 네트워크에 ERC-20 토큰을 배포하고, Spring Boot 서버에서 web3j로 잔액 조회와 토큰 전송을 실습하는 프로젝트입니다.
 
 ## 폴더 구조
