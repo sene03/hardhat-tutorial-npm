@@ -5,10 +5,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.example.server.config.TokenProperties;
 import com.example.server.dto.WalletResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.Keys;
 import org.web3j.crypto.WalletUtils;
@@ -18,12 +16,6 @@ import org.web3j.utils.Numeric;
 public class WalletRegistry {
 
 	private final Map<String, Credentials> wallets = new ConcurrentHashMap<>();
-
-	public WalletRegistry(TokenProperties properties) {
-		if (StringUtils.hasText(properties.signerPrivateKey())) {
-			register(Credentials.create(normalizePrivateKey(properties.signerPrivateKey())));
-		}
-	}
 
 	public WalletResponse createWallet() throws Exception {
 		Credentials credentials = Credentials.create(Keys.createEcKeyPair());

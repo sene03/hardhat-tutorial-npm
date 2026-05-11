@@ -1,11 +1,28 @@
 spring:
   application:
     name: server
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:13306/local_currency?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
+    username: ${DB_USERNAME:local_currency}
+    password: ${DB_PASSWORD:local_currency_password}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
 besu:
   rpc-url: ${BESU_RPC_URL:http://localhost:8545}
   chain-id: ${BESU_CHAIN_ID:1337}
 
-token:
-  contract-address: ${TOKEN_CONTRACT_ADDRESS:}
-  signer-private-key: ${BESU_SIGNER_PRIVATE_KEY:}
+wallet:
+  aes-key-base64: ${WALLET_AES_KEY_BASE64:zQJMnPnNmVAlhWIODSOAs0ed0HIVgK2cuuwspZ+xQgE=}
+
+logging:
+  level:
+    org.springframework.web.servlet: DEBUG          # HTTP 요청/응답 로그
+    org.hibernate.SQL: DEBUG                        # 실행 SQL 출력
+    org.hibernate.orm.jdbc.bind: TRACE              # 바인딩 파라미터 값 출력 (Hibernate 6)

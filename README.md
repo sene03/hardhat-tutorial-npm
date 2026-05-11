@@ -27,6 +27,21 @@ docker compose up -d
 docker compose logs -f # 로그 확인
 ```
 
+`genesis.json`의 `alloc`을 바꾼 뒤에는 기존 체인 데이터에 자동 반영되지 않는다. 개발망을 새 genesis로 다시 시작하려면 각 노드의 `key`, `key.pub`는 유지하고 Besu 데이터만 초기화한다.
+
+```bash
+cd QBFT-Network
+docker compose down
+
+find Node-1/data Node-2/data Node-3/data Node-4/data \
+  -mindepth 1 \
+  ! -name key \
+  ! -name key.pub \
+  -exec rm -rf {} +
+
+docker compose up -d
+```
+
 ```bash
 # Contract 배포하기
 npx hardhat run scripts/deploy-token.ts --network besu
@@ -41,6 +56,10 @@ Token deployed to: 0x2E1f232a9439C3D459FcEca0BeEf13acc8259Dd8
 # 환경변수 주입 후 서버 실행
 export TOKEN_CONTRACT_ADDRESS=<0x방금_출력된_주소>
 export BESU_SIGNER_PRIVATE_KEY=0x8f2a55949038a9610f50fb23b5883af3b4ecb3c3bb792cbcefbd1542c692be63
+export WALLET_AES_KEY_BASE64='zQJMnPnNmVAlhWIODSOAs0ed0HIVgK2cuuwspZ+xQgE='
+# 로컬 3306 포트 충돌을 피하려고 compose의 MySQL은 호스트 13306 포트로 노출된다.
+# 기본값과 다르게 실행할 때만 DB_URL을 직접 지정한다.
+# export DB_URL='jdbc:mysql://localhost:13306/local_currency?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul'
 
 cd server
 ./gradlew bootRun
@@ -48,6 +67,7 @@ cd server
 
 - TOKEN_CONTRACT_ADDRESS: 위 Token이 배포된 블록의 주소
 - BESU_SIGNER_PRIVATE_KEY: 위 토큰을 배포한 주소(0xfe...)의 private key. 해당 계정으로 transfer 함수 호출 시 사용됨
+- WALLET_AES_KEY_BASE64: DB의 `institution_wallet.encrypted_key` 복호화에 사용하는 개발용 AES-256 key
 
 현재 구현한 스마트 컨트랙트 `Token.sol`이 컨트랙트를 배포한 계정에게 민팅하도록 구현되어있음. 
 
@@ -56,6 +76,38 @@ cd server
 ## API test
 
 서버 실행 후 Apidog에서 Base URL을 `http://localhost:8080`으로 설정하고 테스트한다.
+
+#### 기관별 토큰 컨트랙트 배포
+
+- Method: `POST`
+- URL: `/api/institutions/{institutionId}/contracts/deploy`
+- 예시: `/api/institutions/1/contracts/deploy`
+- Body: 없음 또는 JSON
+
+요청 Body 예시:
+
+```json
+{
+  "name": "CBDC"
+}
+```
+
+`name`을 생략하면 중앙은행은 `CBDC`, 참가은행은 `DEPOSIT_TOKEN`으로 저장된다. 서버는 DB에서 기관의 `encrypted_key`를 복호화하고, 기관의 `rpc_endpoint`로 `Token.json` bytecode를 배포한 뒤 `contract` 테이블에 주소를 저장한다.
+
+응답 예시:
+
+```json
+{
+  "institutionId": 1,
+  "institutionName": "Central Bank",
+  "institutionType": "CENTRAL_BANK",
+  "contractName": "CBDC",
+  "contractAddress": "0x...",
+  "transactionHash": "0x...",
+  "rpcEndpoint": "http://localhost:8545",
+  "signerAddress": "0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73"
+}
+```
 
 #### 잔액 조회
 
@@ -117,6 +169,15 @@ cd server
 
 - `amount`는 MHT의 최소 단위 기준이다. `1 MHT = 1000000000000000000`
 - `from` 주소는 서버가 private key를 알고 있는 주소여야 한다.
+
+## 4기관 초기 데이터
+
+- Node-1: Central Bank, `http://localhost:8545`, `0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73`
+- Node-2: Commercial Bank 1, `http://localhost:8547`, `0x627306090abaB3A6e1400e9345bC60c78a8BEf57`
+- Node-3: Commercial Bank 2, `http://localhost:8549`, `0xf17f52151EbEF6C7334FAD080c5704D77216b732`
+- Node-4: Commercial Bank 3, `http://localhost:8551`, `0xE9BA79E62a58225065bF24313896CD332dAFCB3C`
+
+MySQL 초기화 시 `server/db/init/02-seed.sql`이 위 기관, 지갑, Besu 노드 정보를 넣는다. `institution_wallet.encrypted_key`는 개발용 `WALLET_AES_KEY_BASE64`로 AES-GCM 암호화된 값이다.
 
 ## 추가 설명
 
