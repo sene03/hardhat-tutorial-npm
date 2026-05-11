@@ -119,13 +119,9 @@ public class TokenService {
 			throw new ApiException(HttpStatus.BAD_REQUEST, "amount must be a positive integer in token base units");
 		}
 
-		InstitutionWallet wallet = walletRepository.findByAddressIgnoreCase(request.from())
-				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-						"No institution wallet found for address: " + request.from()));
-		Long institutionId = wallet.getInstitutionId();
-		Credentials credentials = walletKeyCipher.decryptCredentials(wallet.getEncryptedKey());
-		String contractAddress = resolveContractAddress(institutionId);
-		BesuNode besuNode = resolveBesuNode(institutionId);
+		Credentials credentials = resolveSigningCredentials(request.from());
+		String contractAddress = resolveContractAddress(CBDC_INSTITUTION_ID);
+		BesuNode besuNode = resolveBesuNode(CBDC_INSTITUTION_ID);
 
 		BalanceResponse balance = balanceOf(request.from());
 		if (balance.balance().compareTo(request.amount()) < 0) {
@@ -175,6 +171,71 @@ public class TokenService {
 		}
 	}
 
+	public TransferResponse operatorTransfer(TransferRequest request) {
+		if (request == null) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "Request body is required");
+		}
+		validateAddress(request.from(), "from");
+		validateAddress(request.to(), "to");
+		if (request.amount() == null || request.amount().compareTo(BigInteger.ZERO) <= 0) {
+			throw new ApiException(HttpStatus.BAD_REQUEST, "amount must be a positive integer in token base units");
+		}
+
+		InstitutionWallet operatorWallet = walletRepository.findByInstitutionId(CBDC_INSTITUTION_ID)
+				.orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
+						"Operator wallet not found for institution " + CBDC_INSTITUTION_ID));
+		Credentials operatorCredentials = walletKeyCipher.decryptCredentials(operatorWallet.getEncryptedKey());
+		String contractAddress = resolveContractAddress(CBDC_INSTITUTION_ID);
+		BesuNode besuNode = resolveBesuNode(CBDC_INSTITUTION_ID);
+
+		Web3j web3j = Web3j.build(new HttpService(besuNode.getRpcEndpoint()));
+		try {
+			BigInteger balance = balanceOf(web3j, contractAddress, request.from());
+			if (balance.compareTo(request.amount()) < 0) {
+				throw new ApiException(HttpStatus.BAD_REQUEST, "Insufficient token balance");
+			}
+
+			EthGasPrice gasPriceResponse = web3j.ethGasPrice().send();
+			if (gasPriceResponse.hasError()) {
+				throw new ApiException(HttpStatus.BAD_GATEWAY, gasPriceResponse.getError().getMessage());
+			}
+
+			Function function = new Function(
+					"operatorTransfer",
+					List.of(new Address(request.from()), new Address(request.to()), new Uint256(request.amount())),
+					List.of(new TypeReference<org.web3j.abi.datatypes.Bool>() {}));
+
+			RawTransactionManager transactionManager = new RawTransactionManager(
+					web3j, operatorCredentials, besuProperties.chainId());
+			EthSendTransaction sendResponse = transactionManager.sendTransaction(
+					gasPriceResponse.getGasPrice(),
+					TRANSFER_GAS_LIMIT,
+					contractAddress,
+					FunctionEncoder.encode(function),
+					BigInteger.ZERO);
+
+			if (sendResponse.hasError()) {
+				throw new ApiException(HttpStatus.BAD_GATEWAY, sendResponse.getError().getMessage());
+			}
+
+			TransactionReceipt receipt = waitForReceipt(web3j, sendResponse.getTransactionHash());
+			if (!receipt.isStatusOK()) {
+				throw new ApiException(HttpStatus.BAD_GATEWAY,
+						"Transaction reverted: " + sendResponse.getTransactionHash());
+			}
+
+			return new TransferResponse(
+					sendResponse.getTransactionHash(),
+					request.from(),
+					request.to(),
+					receipt.getStatus());
+		} catch (IOException e) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY, "Besu RPC operator transaction failed: " + e.getMessage());
+		} finally {
+			web3j.shutdown();
+		}
+	}
+
 	public WalletResponse createWallet() {
 		try {
 			Credentials credentials = Credentials.create(Keys.createEcKeyPair());
@@ -197,6 +258,16 @@ public class TokenService {
 						"No wallet found for address: " + address));
 	}
 
+	private Credentials resolveSigningCredentials(String address) {
+		return walletRepository.findByAddressIgnoreCase(address)
+				.map(InstitutionWallet::getEncryptedKey)
+				.or(() -> userWalletRepository.findByAddressIgnoreCase(address)
+						.map(UserWallet::getEncryptedKey))
+				.map(walletKeyCipher::decryptCredentials)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+						"No wallet found for address: " + address));
+	}
+
 	private String resolveContractAddress(Long institutionId) {
 		return deployedContractRepository.findByInstitutionId(institutionId)
 				.map(DeployedContract::getAddress)
@@ -208,6 +279,29 @@ public class TokenService {
 		return besuNodeRepository.findByInstitutionId(institutionId)
 				.orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST,
 						"Besu node not found for institution " + institutionId));
+	}
+
+	private BigInteger balanceOf(Web3j web3j, String contractAddress, String address) throws IOException {
+		Function function = new Function(
+				"balanceOf",
+				List.of(new Address(address)),
+				List.of(new TypeReference<Uint256>() {}));
+
+		String data = FunctionEncoder.encode(function);
+		Transaction transaction = Transaction.createEthCallTransaction(null, contractAddress, data);
+		EthCall response = web3j.ethCall(transaction, DefaultBlockParameterName.LATEST).send();
+
+		if (response.hasError()) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY, response.getError().getMessage());
+		}
+
+		var decoded = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
+		if (decoded.isEmpty()) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY,
+					"No ERC-20 response from contract. Check the contract is deployed on this Besu network.");
+		}
+
+		return (BigInteger) decoded.getFirst().getValue();
 	}
 
 	private TransactionReceipt waitForReceipt(Web3j web3j, String transactionHash) {
