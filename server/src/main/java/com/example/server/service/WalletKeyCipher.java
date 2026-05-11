@@ -2,6 +2,7 @@ package com.example.server.service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
@@ -18,7 +19,9 @@ public class WalletKeyCipher {
 
 	private static final String FORMAT_PREFIX = "v1";
 	private static final int GCM_TAG_BITS = 128;
+	private static final int GCM_NONCE_BYTES = 12;
 	private static final int AES_256_KEY_BYTES = 32;
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final SecretKeySpec keySpec;
 
@@ -35,6 +38,24 @@ public class WalletKeyCipher {
 
 	public Credentials decryptCredentials(String encryptedKey) {
 		return Credentials.create(decryptPrivateKey(encryptedKey));
+	}
+
+	public String encryptPrivateKey(String privateKey) {
+		try {
+			byte[] nonce = new byte[GCM_NONCE_BYTES];
+			SECURE_RANDOM.nextBytes(nonce);
+
+			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+			cipher.init(Cipher.ENCRYPT_MODE, keySpec, new GCMParameterSpec(GCM_TAG_BITS, nonce));
+			byte[] ciphertextWithTag = cipher.doFinal(privateKey.getBytes(StandardCharsets.UTF_8));
+
+			return FORMAT_PREFIX + ":"
+					+ Base64.getEncoder().encodeToString(nonce) + ":"
+					+ Base64.getEncoder().encodeToString(ciphertextWithTag);
+		}
+		catch (GeneralSecurityException e) {
+			throw new IllegalStateException("Failed to encrypt wallet private key", e);
+		}
 	}
 
 	public String decryptPrivateKey(String encryptedKey) {

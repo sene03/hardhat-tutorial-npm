@@ -26,6 +26,18 @@ CREATE TABLE institution_wallet (
     ON DELETE CASCADE
 ) COMMENT='기관별 온체인 서명용 계정 정보';
 
+CREATE TABLE user_wallet (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    address CHAR(42) NOT NULL,
+    encrypted_key TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_user_wallet_address (address),
+    CONSTRAINT chk_user_wallet_address
+    CHECK (REGEXP_LIKE(address, '^0x[0-9a-fA-F]{40}$'))
+) COMMENT='사용자 온체인 지갑 정보';
+
 CREATE TABLE contract (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '컨트랙트 ID (BIGSERIAL)',
   institution_id BIGINT UNSIGNED NOT NULL COMMENT '기관 ID',

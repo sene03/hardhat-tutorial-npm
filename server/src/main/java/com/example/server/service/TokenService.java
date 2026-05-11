@@ -8,6 +8,7 @@ import com.example.server.config.BesuProperties;
 import com.example.server.domain.BesuNode;
 import com.example.server.domain.DeployedContract;
 import com.example.server.domain.InstitutionWallet;
+import com.example.server.domain.UserWallet;
 import com.example.server.dto.BalanceResponse;
 import com.example.server.dto.TransferRequest;
 import com.example.server.dto.TransferResponse;
@@ -15,6 +16,7 @@ import com.example.server.dto.WalletResponse;
 import com.example.server.repository.BesuNodeRepository;
 import com.example.server.repository.DeployedContractRepository;
 import com.example.server.repository.InstitutionWalletRepository;
+import com.example.server.repository.UserWalletRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,6 +27,7 @@ import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.crypto.Credentials;
+import org.web3j.crypto.Keys;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
@@ -36,6 +39,7 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.RawTransactionManager;
 import org.web3j.tx.response.PollingTransactionReceiptProcessor;
+import org.web3j.utils.Numeric;
 
 @Service
 public class TokenService {
@@ -43,36 +47,37 @@ public class TokenService {
 	private static final BigInteger TRANSFER_GAS_LIMIT = BigInteger.valueOf(100_000);
 	private static final int RECEIPT_POLLING_ATTEMPTS = 60;
 	private static final long RECEIPT_POLLING_INTERVAL_MS = 1_000L;
+	private static final Long CBDC_INSTITUTION_ID = 1L;
 
 	private final BesuProperties besuProperties;
 	private final DeployedContractRepository deployedContractRepository;
 	private final InstitutionWalletRepository walletRepository;
+	private final UserWalletRepository userWalletRepository;
 	private final WalletKeyCipher walletKeyCipher;
 	private final BesuNodeRepository besuNodeRepository;
-	private final WalletRegistry walletRegistry;
 
 	public TokenService(
 			BesuProperties besuProperties,
 			DeployedContractRepository deployedContractRepository,
 			InstitutionWalletRepository walletRepository,
+			UserWalletRepository userWalletRepository,
 			WalletKeyCipher walletKeyCipher,
-			BesuNodeRepository besuNodeRepository,
-			WalletRegistry walletRegistry) {
+			BesuNodeRepository besuNodeRepository) {
 		this.besuProperties = besuProperties;
 		this.deployedContractRepository = deployedContractRepository;
 		this.walletRepository = walletRepository;
+		this.userWalletRepository = userWalletRepository;
 		this.walletKeyCipher = walletKeyCipher;
 		this.besuNodeRepository = besuNodeRepository;
-		this.walletRegistry = walletRegistry;
 	}
 
 	public BalanceResponse balanceOf(String address) {
 		validateAddress(address, "address");
-		InstitutionWallet wallet = walletRepository.findByAddressIgnoreCase(address)
-				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-						"No institution wallet found for address: " + address));
-		String contractAddress = resolveContractAddress(wallet.getInstitutionId());
-		BesuNode besuNode = resolveBesuNode(wallet.getInstitutionId());
+		Long contractInstitutionId = walletRepository.findByAddressIgnoreCase(address)
+				.map(InstitutionWallet::getInstitutionId)
+				.orElseGet(() -> resolveUserWalletContractInstitutionId(address));
+		String contractAddress = resolveContractAddress(contractInstitutionId);
+		BesuNode besuNode = resolveBesuNode(contractInstitutionId);
 
 		Web3j web3j = Web3j.build(new HttpService(besuNode.getRpcEndpoint()));
 		try {
@@ -172,10 +177,24 @@ public class TokenService {
 
 	public WalletResponse createWallet() {
 		try {
-			return walletRegistry.createWallet();
+			Credentials credentials = Credentials.create(Keys.createEcKeyPair());
+			String privateKey = Numeric.toHexStringWithPrefixZeroPadded(
+					credentials.getEcKeyPair().getPrivateKey(),
+					64);
+			userWalletRepository.save(new UserWallet(
+					credentials.getAddress(),
+					walletKeyCipher.encryptPrivateKey(privateKey)));
+			return new WalletResponse(credentials.getAddress(), privateKey);
 		} catch (Exception e) {
 			throw new ApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to create wallet: " + e.getMessage());
 		}
+	}
+
+	private Long resolveUserWalletContractInstitutionId(String address) {
+		return userWalletRepository.findByAddressIgnoreCase(address)
+				.map(wallet -> CBDC_INSTITUTION_ID)
+				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
+						"No wallet found for address: " + address));
 	}
 
 	private String resolveContractAddress(Long institutionId) {
