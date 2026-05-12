@@ -16,7 +16,7 @@ services:
       - --rpc-http-host=0.0.0.0
       - --rpc-http-port=8545
       - --rpc-http-cors-origins=*
-      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN
+      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN,TXPOOL
       - --rpc-ws-enabled=true
       - --rpc-ws-host=0.0.0.0
       - --rpc-ws-port=8546
@@ -46,7 +46,7 @@ services:
       - --rpc-http-host=0.0.0.0
       - --rpc-http-port=8545
       - --rpc-http-cors-origins=*
-      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN
+      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN,TXPOOL
       - --rpc-ws-enabled=true
       - --rpc-ws-host=0.0.0.0
       - --rpc-ws-port=8546
@@ -79,7 +79,7 @@ services:
       - --rpc-http-host=0.0.0.0
       - --rpc-http-port=8545
       - --rpc-http-cors-origins=*
-      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN
+      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN,TXPOOL
       - --rpc-ws-enabled=true
       - --rpc-ws-host=0.0.0.0
       - --rpc-ws-port=8546
@@ -112,7 +112,7 @@ services:
       - --rpc-http-host=0.0.0.0
       - --rpc-http-port=8545
       - --rpc-http-cors-origins=*
-      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN
+      - --rpc-http-api=ETH,NET,QBFT,WEB3,MINER,ADMIN,TXPOOL
       - --rpc-ws-enabled=true
       - --rpc-ws-host=0.0.0.0
       - --rpc-ws-port=8546
