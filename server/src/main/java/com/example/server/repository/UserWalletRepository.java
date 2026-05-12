@@ -2,10 +2,11 @@ package com.example.server.repository;
 
 import java.util.Optional;
 
-import com.example.server.domain.UserWallet;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface UserWalletRepository extends JpaRepository<UserWallet, Long> {
+import com.example.server.domain.BankWallet;
 
-	Optional<UserWallet> findByAddressIgnoreCase(String address);
+public interface UserWalletRepository extends JpaRepository<BankWallet, Long> {
+
+	Optional<BankWallet> findByAddressIgnoreCase(String address);
 }

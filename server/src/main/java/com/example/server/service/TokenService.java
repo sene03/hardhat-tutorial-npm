@@ -8,7 +8,7 @@ import com.example.server.config.BesuProperties;
 import com.example.server.domain.BesuNode;
 import com.example.server.domain.DeployedContract;
 import com.example.server.domain.InstitutionWallet;
-import com.example.server.domain.UserWallet;
+import com.example.server.domain.BankWallet;
 import com.example.server.dto.BalanceResponse;
 import com.example.server.dto.TransferRequest;
 import com.example.server.dto.TransferResponse;
@@ -238,7 +238,7 @@ public class TokenService {
 			String privateKey = Numeric.toHexStringWithPrefixZeroPadded(
 					credentials.getEcKeyPair().getPrivateKey(),
 					64);
-			userWalletRepository.save(new UserWallet(
+			userWalletRepository.save(new BankWallet(
 					credentials.getAddress(),
 					walletKeyCipher.encryptPrivateKey(privateKey)));
 			return new WalletResponse(credentials.getAddress(), privateKey);
@@ -258,7 +258,7 @@ public class TokenService {
 		return walletRepository.findByAddressIgnoreCase(address)
 				.map(InstitutionWallet::getEncryptedKey)
 				.or(() -> userWalletRepository.findByAddressIgnoreCase(address)
-						.map(UserWallet::getEncryptedKey))
+						.map(BankWallet::getEncryptedKey))
 				.map(walletKeyCipher::decryptCredentials)
 				.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
 						"No wallet found for address: " + address));
