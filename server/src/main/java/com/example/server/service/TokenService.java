@@ -28,11 +28,14 @@ import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.Keys;
+import org.web3j.crypto.RawTransaction;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.request.Transaction;
 import org.web3j.protocol.core.methods.response.EthCall;
+import org.web3j.protocol.core.methods.response.EthGetBalance;
+import org.web3j.protocol.core.methods.response.EthGetTransactionCount;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
@@ -139,12 +142,12 @@ public class TokenService {
 
 			RawTransactionManager transactionManager = new RawTransactionManager(
 					web3j, credentials, besuProperties.chainId());
-			EthSendTransaction sendResponse = transactionManager.sendTransaction(
-					PRIVATE_NETWORK_GAS_PRICE,
-					TRANSFER_GAS_LIMIT,
+			EthSendTransaction sendResponse = signAndSendTransaction(
+					web3j,
+					transactionManager,
+					credentials.getAddress(),
 					contractAddress,
-					FunctionEncoder.encode(function),
-					BigInteger.ZERO);
+					FunctionEncoder.encode(function));
 
 			if (sendResponse.hasError()) {
 				throw new ApiException(HttpStatus.BAD_GATEWAY, sendResponse.getError().getMessage());
@@ -200,12 +203,12 @@ public class TokenService {
 
 			RawTransactionManager transactionManager = new RawTransactionManager(
 					web3j, operatorCredentials, besuProperties.chainId());
-			EthSendTransaction sendResponse = transactionManager.sendTransaction(
-					PRIVATE_NETWORK_GAS_PRICE,
-					TRANSFER_GAS_LIMIT,
+			EthSendTransaction sendResponse = signAndSendTransaction(
+					web3j,
+					transactionManager,
+					operatorCredentials.getAddress(),
 					contractAddress,
-					FunctionEncoder.encode(function),
-					BigInteger.ZERO);
+					FunctionEncoder.encode(function));
 
 			if (sendResponse.hasError()) {
 				throw new ApiException(HttpStatus.BAD_GATEWAY, sendResponse.getError().getMessage());
@@ -298,6 +301,52 @@ public class TokenService {
 		return (BigInteger) decoded.getFirst().getValue();
 	}
 
+	private EthSendTransaction signAndSendTransaction(
+			Web3j web3j,
+			RawTransactionManager transactionManager,
+			String senderAddress,
+			String contractAddress,
+			String data) throws IOException {
+		assertNativeBalanceAvailable(web3j, senderAddress);
+		BigInteger latestNonce = getTransactionCount(web3j, senderAddress, DefaultBlockParameterName.LATEST);
+		BigInteger pendingNonce = getTransactionCount(web3j, senderAddress, DefaultBlockParameterName.PENDING);
+		if (!latestNonce.equals(pendingNonce)) {
+			throw new ApiException(HttpStatus.CONFLICT,
+					"Sender has pending transactions. latestNonce=" + latestNonce + ", pendingNonce=" + pendingNonce);
+		}
+
+		RawTransaction transaction = RawTransaction.createTransaction(
+				pendingNonce,
+				PRIVATE_NETWORK_GAS_PRICE,
+				TRANSFER_GAS_LIMIT,
+				contractAddress,
+				BigInteger.ZERO,
+				data);
+		return transactionManager.signAndSend(transaction);
+	}
+
+	private void assertNativeBalanceAvailable(Web3j web3j, String address) throws IOException {
+		EthGetBalance response = web3j.ethGetBalance(address, DefaultBlockParameterName.LATEST).send();
+		if (response.hasError()) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY, response.getError().getMessage());
+		}
+		if (response.getBalance().equals(BigInteger.ZERO)) {
+			throw new ApiException(HttpStatus.BAD_REQUEST,
+					"Sender native balance is zero. Fund the wallet with native coin before sending transactions.");
+		}
+	}
+
+	private BigInteger getTransactionCount(
+			Web3j web3j,
+			String address,
+			DefaultBlockParameterName blockParameterName) throws IOException {
+		EthGetTransactionCount response = web3j.ethGetTransactionCount(address, blockParameterName).send();
+		if (response.hasError()) {
+			throw new ApiException(HttpStatus.BAD_GATEWAY, response.getError().getMessage());
+		}
+		return response.getTransactionCount();
+	}
+
 	private TransactionReceipt waitForReceipt(Web3j web3j, String transactionHash) {
 		try {
 			PollingTransactionReceiptProcessor processor = new PollingTransactionReceiptProcessor(
@@ -305,7 +354,7 @@ public class TokenService {
 			return processor.waitForTransactionReceipt(transactionHash);
 		} catch (Exception e) {
 			throw new ApiException(HttpStatus.GATEWAY_TIMEOUT,
-					"Timed out waiting for transaction receipt: " + e.getMessage());
+					"Timed out waiting for transaction receipt " + transactionHash + ": " + e.getMessage());
 		}
 	}
 
