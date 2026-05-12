@@ -3,14 +3,6 @@ package com.example.server.service;
 import java.io.IOException;
 import java.math.BigInteger;
 
-import com.example.server.config.BesuProperties;
-import com.example.server.domain.ContractName;
-import com.example.server.domain.DeployedContract;
-import com.example.server.domain.Institution;
-import com.example.server.dto.DeployContractRequest;
-import com.example.server.dto.DeployContractResponse;
-import com.example.server.repository.DeployedContractRepository;
-import com.example.server.repository.InstitutionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
@@ -23,6 +15,15 @@ import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.RawTransactionManager;
 import org.web3j.tx.response.PollingTransactionReceiptProcessor;
+
+import com.example.server.config.BesuProperties;
+import com.example.server.domain.ContractName;
+import com.example.server.domain.DeployedContract;
+import com.example.server.domain.Institution;
+import com.example.server.dto.DeployContractRequest;
+import com.example.server.dto.DeployContractResponse;
+import com.example.server.repository.DeployedContractRepository;
+import com.example.server.repository.InstitutionRepository;
 
 @Service
 public class InstitutionContractDeploymentService {
@@ -52,107 +53,112 @@ public class InstitutionContractDeploymentService {
         this.deployedContractRepository = deployedContractRepository;
     }
 
-    public DeployContractResponse deploy(Long institutionId, DeployContractRequest request) {
-        Institution institution = institutionRepository.findById(institutionId)
-                .orElseThrow(() -> new ApiException(
-                        HttpStatus.NOT_FOUND,
-                        "Institution not found: " + institutionId
-                ));
+public DeployContractResponse deploy(Long institutionId, DeployContractRequest request) {
+    Institution institution = institutionRepository.findById(institutionId)
+            .orElseThrow(() -> new ApiException(
+                    HttpStatus.NOT_FOUND,
+                    "Institution not found: " + institutionId
+            ));
 
-        validateInstitutionDeploymentInfo(institution);
+    validateInstitutionDeploymentInfo(institution);
 
-        deployedContractRepository.findByInstitutionId(institutionId)
-                .ifPresent(existing -> {
-                    throw new ApiException(
-                            HttpStatus.CONFLICT,
-                            "Contract already deployed for institution " + institutionId + ": " + existing.getAddress()
-                    );
-                });
+    ContractName contractName = resolveContractName(institution, request);
 
-        ContractName contractName = resolveContractName(institution, request);
+    deployedContractRepository.findByInstitutionIdAndName(institutionId, contractName)
+            .ifPresent(existing -> {
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "Contract already deployed for institution "
+                                + institutionId
+                                + " and name "
+                                + contractName
+                                + ": "
+                                + existing.getAddress()
+                );
+            });
 
-        Credentials credentials = walletKeyCipher.decryptCredentials(
-                institution.getEncryptedPrivateKey()
+    Credentials credentials = walletKeyCipher.decryptCredentials(
+            institution.getEncryptedPrivateKey()
+    );
+
+    validateSignerAddress(institution, credentials);
+
+    Web3j web3j = Web3j.build(new HttpService(institution.getRpcEndpoint()));
+
+    try {
+        RawTransactionManager transactionManager = new RawTransactionManager(
+                web3j,
+                credentials,
+                besuProperties.chainId()
         );
 
-        validateSignerAddress(institution, credentials);
+        EthGetTransactionCount nonceResponse = web3j.ethGetTransactionCount(
+                credentials.getAddress(),
+                DefaultBlockParameterName.PENDING
+        ).send();
 
-        Web3j web3j = Web3j.build(new HttpService(institution.getRpcEndpoint()));
-
-        try {
-            RawTransactionManager transactionManager = new RawTransactionManager(
-                    web3j,
-                    credentials,
-                    besuProperties.chainId()
-            );
-
-            EthGetTransactionCount nonceResponse = web3j.ethGetTransactionCount(
-                    credentials.getAddress(),
-                    DefaultBlockParameterName.PENDING
-            ).send();
-
-            if (nonceResponse.hasError()) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, nonceResponse.getError().getMessage());
-            }
-
-            RawTransaction deployTransaction = RawTransaction.createContractTransaction(
-                    nonceResponse.getTransactionCount(),
-                    PRIVATE_NETWORK_GAS_PRICE,
-                    DEPLOY_GAS_LIMIT,
-                    BigInteger.ZERO,
-                    tokenArtifactLoader.tokenArtifact().bytecode()
-            );
-
-            EthSendTransaction sendResponse = transactionManager.signAndSend(deployTransaction);
-
-            if (sendResponse.hasError()) {
-                throw new ApiException(HttpStatus.BAD_GATEWAY, sendResponse.getError().getMessage());
-            }
-
-            TransactionReceipt receipt = waitForReceipt(web3j, sendResponse.getTransactionHash());
-
-            if (!receipt.isStatusOK()) {
-                throw new ApiException(
-                        HttpStatus.BAD_GATEWAY,
-                        "Contract deployment reverted: " + receipt.getTransactionHash()
-                );
-            }
-
-            if (receipt.getContractAddress() == null || receipt.getContractAddress().isBlank()) {
-                throw new ApiException(
-                        HttpStatus.BAD_GATEWAY,
-                        "Deployment receipt did not include a contract address"
-                );
-            }
-
-            DeployedContract deployedContract = deployedContractRepository.save(
-                    new DeployedContract(
-                            institutionId,
-                            contractName,
-                            receipt.getContractAddress()
-                    )
-            );
-
-            return new DeployContractResponse(
-                    institution.getId(),
-                    institution.getInstitutionName(),
-                    deployedContract.getName(),
-                    deployedContract.getAddress(),
-                    receipt.getTransactionHash(),
-                    institution.getRpcEndpoint(),
-                    credentials.getAddress()
-            );
+        if (nonceResponse.hasError()) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, nonceResponse.getError().getMessage());
         }
-        catch (IOException e) {
+
+        RawTransaction deployTransaction = RawTransaction.createContractTransaction(
+                nonceResponse.getTransactionCount(),
+                PRIVATE_NETWORK_GAS_PRICE,
+                DEPLOY_GAS_LIMIT,
+                BigInteger.ZERO,
+                tokenArtifactLoader.tokenArtifact().bytecode()
+        );
+
+        EthSendTransaction sendResponse = transactionManager.signAndSend(deployTransaction);
+
+        if (sendResponse.hasError()) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, sendResponse.getError().getMessage());
+        }
+
+        TransactionReceipt receipt = waitForReceipt(web3j, sendResponse.getTransactionHash());
+
+        if (!receipt.isStatusOK()) {
             throw new ApiException(
                     HttpStatus.BAD_GATEWAY,
-                    "Besu RPC deployment failed: " + e.getMessage()
+                    "Contract deployment reverted: " + receipt.getTransactionHash()
             );
         }
-        finally {
-            web3j.shutdown();
+
+        if (receipt.getContractAddress() == null || receipt.getContractAddress().isBlank()) {
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Deployment receipt did not include a contract address"
+            );
         }
+
+        DeployedContract deployedContract = deployedContractRepository.save(
+                new DeployedContract(
+                        institutionId,
+                        contractName,
+                        receipt.getContractAddress()
+                )
+        );
+
+        return new DeployContractResponse(
+                institution.getId(),
+                institution.getInstitutionName(),
+                deployedContract.getName(),
+                deployedContract.getAddress(),
+                receipt.getTransactionHash(),
+                institution.getRpcEndpoint(),
+                credentials.getAddress()
+        );
     }
+    catch (IOException e) {
+        throw new ApiException(
+                HttpStatus.BAD_GATEWAY,
+                "Besu RPC deployment failed: " + e.getMessage()
+        );
+    }
+    finally {
+        web3j.shutdown();
+    }
+}
 
     private TransactionReceipt waitForReceipt(Web3j web3j, String transactionHash) {
         try {
