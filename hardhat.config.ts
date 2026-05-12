@@ -2,7 +2,16 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.28",
+  solidity: {
+    version: "0.8.28",
+    settings: {
+      evmVersion: "london",
+      optimizer: {
+        enabled: true,
+        runs: 200,
+      },
+    },
+  },
   networks: {
     besu: {
       url: "http://localhost:8545",
@@ -14,6 +23,7 @@ const config: HardhatUserConfig = {
         "ae6ae8e5ccbfb04590405997ee2d52d2b330726137b875053c36d94e974d162f",
         "fdad4ce4c7c8382ea0357ad12071156ba54963cabed82f415e24c43f537fe784",
       ],
+      gas: 0x1ffffffffffffe,
     },
   },
 };
