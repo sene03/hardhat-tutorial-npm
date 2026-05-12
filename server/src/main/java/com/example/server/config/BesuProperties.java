@@ -4,6 +4,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "besu")
 public record BesuProperties(
-		String rpcUrl,
-		long chainId) {
+        long chainId
+) {
 }

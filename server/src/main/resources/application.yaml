@@ -15,7 +15,6 @@ spring:
         format_sql: true
 
 besu:
-  rpc-url: ${BESU_RPC_URL:http://localhost:8545}
   chain-id: ${BESU_CHAIN_ID:1337}
 
 wallet:
