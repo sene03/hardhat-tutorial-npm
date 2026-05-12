@@ -26,3 +26,5 @@ QBFT-Network/Node-*/data/besu.ports
 
 .claude/
 .vscode/
+.idea/
+.DS_Store
