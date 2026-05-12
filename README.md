@@ -102,14 +102,13 @@ cd server
 
 ```json
 {
-  "institutionId": 1,
-  "institutionName": "Central Bank",
-  "institutionType": "CENTRAL_BANK",
-  "contractName": "CBDC",
-  "contractAddress": "0x...",
-  "transactionHash": "0x...",
-  "rpcEndpoint": "http://localhost:8545",
-  "signerAddress": "0xFE3B557E8Fb62b89F4916B721be55cEb828dBd73"
+    "institutionId": 2,
+    "institutionName": "Commercial Bank 1",
+    "contractName": "DEPOSIT_TOKEN",
+    "contractAddress": "0x8cdaf0cd259887258bc13a92c0a6da92698644c0",
+    "transactionHash": "0xb3b0937433c2274f34ce6707204f574ced926e4d5f873c13e9fdac873a6ffcb6",
+    "rpcEndpoint": "http://localhost:8547",
+    "signerAddress": "0x627306090abab3a6e1400e9345bc60c78a8bef57"
 }
 ```
 
@@ -124,7 +123,7 @@ cd server
 
 ```json
 {
-  "address": "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
+  "walletAddress": "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
   "balance": 1000000000000000000000000
 }
 ```
@@ -132,15 +131,15 @@ cd server
 #### 지갑 생성
 
 - Method: `POST`
-- URL: `/api/wallet`
+- URL: `/api/institutions/{institutionId}/wallet`
 - Body: 없음
 
 응답 예시:
 
 ```json
 {
-  "address": "0x...",
-  "privateKey": "0x..."
+  "walletAddress": "0x...",
+  "encryptedPrivateKey": "0x..."
 }
 ```
 
