@@ -24,5 +24,85 @@ services:
       retries: 10
       start_period: 30s
 
+  blockscout-db:
+    image: postgres:14
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: blockscout
+      POSTGRES_USER: blockscout
+      POSTGRES_PASSWORD: blockscout_password
+    volumes:
+      - blockscout-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockscout -d blockscout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  blockscout-redis:
+    image: redis:alpine
+    restart: unless-stopped
+
+  blockscout-backend:
+    image: ghcr.io/blockscout/blockscout:latest
+    restart: unless-stopped
+    command: sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+    depends_on:
+      blockscout-db:
+        condition: service_healthy
+      blockscout-redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql://blockscout:blockscout_password@blockscout-db:5432/blockscout?ssl=false
+      REDIS_URL: redis://blockscout-redis:6379
+      ECTO_USE_SSL: "false"
+      ETHEREUM_JSONRPC_VARIANT: besu
+      ETHEREUM_JSONRPC_HTTP_URL: http://besu-node1:8545/
+      ETHEREUM_JSONRPC_TRACE_URL: http://besu-node1:8545/
+      ETHEREUM_JSONRPC_WS_URL: ws://besu-node1:8546/
+      CHAIN_ID: "1337"
+      SECRET_KEY_BASE: "RMgI4C1HSkxsEjdhtE5nLEOwlQLHTB3XXclxbtXZP64gcpjsFgqe8ex35DUFM3A"
+      COIN: ETH
+      COIN_NAME: Ether
+      NETWORK: "Local Besu"
+      SUBNETWORK: "QBFT"
+      DISABLE_MARKET: "true"
+      API_V2_ENABLED: "true"
+      INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
+      INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"
+      INDEXER_DISABLE_BLOCK_REWARD_FETCHER: "true"
+    ports:
+      - "4001:4000"
+    networks:
+      - default
+      - besu-network
+
+  blockscout-frontend:
+    image: ghcr.io/blockscout/frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - blockscout-backend
+    environment:
+      NEXT_PUBLIC_API_HOST: localhost
+      NEXT_PUBLIC_API_PORT: "4001"
+      NEXT_PUBLIC_API_PROTOCOL: http
+      NEXT_PUBLIC_API_WEBSOCKET_PROTOCOL: ws
+      NEXT_PUBLIC_APP_PROTOCOL: http
+      NEXT_PUBLIC_APP_HOST: localhost
+      NEXT_PUBLIC_NETWORK_ID: "1337"
+      NEXT_PUBLIC_NETWORK_NAME: "Local Besu"
+      NEXT_PUBLIC_NETWORK_SHORT_NAME: "Local Besu"
+      NEXT_PUBLIC_NETWORK_CURRENCY_NAME: Ether
+      NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL: ETH
+      NEXT_PUBLIC_NETWORK_CURRENCY_DECIMALS: "18"
+    ports:
+      - "4000:3000"
+
 volumes:
   mysql-data:
+  blockscout-db-data:
+
+networks:
+  besu-network:
+    external: true
+    name: qbft-network_besu-network
