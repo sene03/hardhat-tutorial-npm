@@ -395,9 +395,43 @@ private TransferResponse settlementTransfer(
     try {
         BigInteger fromBalance = balanceOf(web3j, fromTokenAddress, request.from());
         BigInteger toBalance = balanceOf(web3j, toTokenAddress, request.to());
+        String fromReserveWallet = bankReserveWallet(web3j, settlementAddress, fromInstitutionId);
+        String toReserveWallet = bankReserveWallet(web3j, settlementAddress, toInstitutionId);
+        BigInteger fromReserveCbdcBalance = balanceOf(web3j, cbdcAddress, fromReserveWallet);
         log("기관간 Settlement 정산 잔액 스냅샷: fromBalance=" + fromBalance
                 + ", toBalance=" + toBalance
-                + ", amount=" + request.amount());
+                + ", amount=" + request.amount()
+                + ", fromReserve=" + fromReserveWallet
+                + ", toReserve=" + toReserveWallet
+                + ", fromReserveCbdcBalance=" + fromReserveCbdcBalance);
+
+        // 송신자의 예금 토큰 잔액이 이체 금액보다 부족하면 정산 불가
+        if (fromBalance.compareTo(request.amount()) < 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Insufficient deposit token balance. address="
+                            + request.from()
+                            + ", balance="
+                            + fromBalance
+                            + ", amount="
+                            + request.amount()
+            );
+        }
+
+        // 송신 기관의 CBDC 준비금 잔액이 이체 금액보다 부족하면 정산 불가
+        if (fromReserveCbdcBalance.compareTo(request.amount()) < 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Insufficient CBDC reserve balance. institutionId="
+                            + fromInstitutionId
+                            + ", reserveWallet="
+                            + fromReserveWallet
+                            + ", balance="
+                            + fromReserveCbdcBalance
+                            + ", amount="
+                            + request.amount()
+            );
+        }
 
         Function function = new Function(
                 "settle",
@@ -618,6 +652,50 @@ private Credentials resolveSigningCredentials(String address) {
                 + ", balance=" + balance);
 
         return balance;
+    }
+
+    // settlement 컨트랙트에서 기관 ID에 매핑된 CBDC 준비금 지갑 주소를 조회한다.
+    // 주소가 없거나 zero address이면 준비금 미등록으로 간주해 예외를 던진다.
+    private String bankReserveWallet(
+            Web3j web3j,
+            String settlementAddress,
+            Long institutionId
+    ) throws IOException {
+        Function function = new Function(
+                "bankReserveWallet",
+                List.of(new Uint256(BigInteger.valueOf(institutionId))),
+                List.of(new TypeReference<Address>() {
+                })
+        );
+
+        String data = FunctionEncoder.encode(function);
+        Transaction transaction = Transaction.createEthCallTransaction(null, settlementAddress, data);
+        EthCall response = web3j.ethCall(transaction, DefaultBlockParameterName.LATEST).send();
+
+        if (response.hasError()) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, response.getError().getMessage());
+        }
+
+        var decoded = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
+
+        if (decoded.isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.BAD_GATEWAY,
+                    "No reserve wallet response from settlement contract. institutionId=" + institutionId
+            );
+        }
+
+        String reserveWallet = decoded.getFirst().getValue().toString();
+
+        if (!WalletUtils.isValidAddress(reserveWallet)
+                || "0x0000000000000000000000000000000000000000".equalsIgnoreCase(reserveWallet)) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "Settlement reserve wallet is not registered. institutionId=" + institutionId
+            );
+        }
+
+        return reserveWallet;
     }
 //endregion
 
