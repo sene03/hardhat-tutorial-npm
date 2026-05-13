@@ -33,11 +33,6 @@ public class TokenController {
         return tokenService.transfer(request);
     }
 
-    @PostMapping("/operator-transfer")
-    public TransferResponse operatorTransfer(@RequestBody TransferRequest request) {
-        return tokenService.operatorTransfer(request);
-    }
-
 @PostMapping("/institutions/{institutionId}/wallet")
 public WalletResponse wallet(@PathVariable("institutionId") Long institutionId) {
     return tokenService.createWallet(institutionId);
