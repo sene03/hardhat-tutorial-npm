@@ -9,6 +9,8 @@ contract Token is ERC20 {
 
     event OperatorUpdated(address indexed operator, bool approved);
     event OperatorTransfer(address indexed operator, address indexed from, address indexed to, uint256 amount);
+    event Mint(address indexed operator, address indexed to, uint256 amount);
+    event Burn(address indexed operator, address indexed from, uint256 amount);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Token: caller is not owner");
@@ -35,6 +37,20 @@ contract Token is ERC20 {
     function operatorTransfer(address from, address to, uint256 amount) external onlyOperator returns (bool) {
         _transfer(from, to, amount);
         emit OperatorTransfer(msg.sender, from, to, amount);
+        return true;
+    }
+
+    function mint(address to, uint256 amount) external onlyOperator returns (bool) {
+        require(to != address(0), "Token: mint to zero address");
+        _mint(to, amount);
+        emit Mint(msg.sender, to, amount);
+        return true;
+    }
+
+    function burn(address from, uint256 amount) external onlyOperator returns (bool) {
+        require(from != address(0), "Token: burn from zero address");
+        _burn(from, amount);
+        emit Burn(msg.sender, from, amount);
         return true;
     }
 }
